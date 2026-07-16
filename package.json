@@ -1,0 +1,52 @@
+{
+  "name": "bittech-auth-service",
+  "version": "1.0.0",
+  "description": "Gói tích hợp xác thực và cấp phép hệ thống Node.js với AuthService của Bittech (MongoDB)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "prisma"
+  ],
+  "scripts": {
+    "prisma:generate": "prisma generate",
+    "build": "npm run prisma:generate && tsc -p tsconfig.json",
+    "build:clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\" && npm run build",
+    "typecheck": "npm run prisma:generate && tsc --noEmit",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "auth",
+    "license",
+    "bittech",
+    "prisma",
+    "authservice",
+    "mongodb"
+  ],
+  "author": "Bittech",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^6.0.0",
+    "axios": "^1.7.9"
+  },
+  "peerDependencies": {
+    "express": ">=4.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.2",
+    "prisma": "^6.0.0",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
