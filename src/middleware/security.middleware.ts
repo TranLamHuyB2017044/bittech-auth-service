@@ -82,7 +82,7 @@ export function requireActiveLicense(prisma?: any) {
       const db = prisma || getPrismaClient();
       const activeLicense = await db.authLicense.findFirst({
         where: { status: 1 },
-        select: { license_key: true, expired_at: true, verified_at: true }
+        select: { license_key: true, expired_at: true, verified_at: true, signature: true }
       });
 
       if (!activeLicense) {

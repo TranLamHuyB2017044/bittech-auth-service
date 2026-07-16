@@ -37,6 +37,12 @@ export class AuthLicenseRepository {
     });
   }
 
+  async findLatestLicense() {
+    return this.prisma.authLicense.findFirst({
+      orderBy: { created_at: 'desc' }
+    });
+  }
+
   async createOrUpdatePendingLicense(data: AuthLicenseInput) {
     const id = crypto.randomUUID();
     return this.prisma.authLicense.upsert({

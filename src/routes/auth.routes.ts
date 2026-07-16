@@ -3,14 +3,11 @@ import { AuthServiceClient } from '../client/auth.client.js';
 import { AuthLicenseRepository } from '../database/repositories/auth-license.repository.js';
 import { AuthLicenseAuditRepository } from '../database/repositories/auth-license-audit.repository.js';
 import {
-  validateReplayAttack,
   requireActiveLicense,
   authServiceErrorHandler
 } from '../middleware/security.middleware.js';
 
 export interface AuthRouterOptions {
-  /** Bật kiểm tra chống replay attack (mặc định: true) */
-  enableReplayProtection?: boolean;
   /**
    * Bật kiểm tra license đang hoạt động (status = 1, chưa hết hạn) cho các
    * route yêu cầu license active: authenticate, client-registers, kek/request, verify-token.
@@ -27,7 +24,6 @@ export function createAuthRouter(
   const router = Router();
   const licenseRepo = new AuthLicenseRepository(prisma);
   const auditRepo = new AuthLicenseAuditRepository(prisma);
-  const enableReplay = options.enableReplayProtection !== false;
   const enableLicenseGuard = options.enableLicenseGuard !== false;
 
   // ─── Helper: lấy IP và User-Agent ──────────────────────────────────────────
@@ -41,11 +37,6 @@ export function createAuthRouter(
     };
   }
 
-  // ─── Middleware replay ───────────────────────────────────────────────────────
-  const replayGuard = enableReplay
-    ? validateReplayAttack
-    : (_req: Request, _res: Response, next: NextFunction) => next();
-
   // ─── Middleware license guard ────────────────────────────────────────────────
   // Chỉ áp dụng cho các route yêu cầu license đang active
   const licenseGuard = enableLicenseGuard
@@ -56,7 +47,7 @@ export function createAuthRouter(
   //  1. POST /license/register
   //     Đăng ký license → lưu local DB với status = 0 (chờ duyệt)
   // ───────────────────────────────────────────────────────────────────────────
-  router.post('/license/register', replayGuard, async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/license/register', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { label, expired_at, notes } = req.body;
       if (!label || !expired_at) {
@@ -97,21 +88,17 @@ export function createAuthRouter(
   //  2. POST /license/verify
   //     Xác thực license đã được admin duyệt → cập nhật status = 1
   // ───────────────────────────────────────────────────────────────────────────
-  router.post('/license/verify', replayGuard, async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/license/verify', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { license_key } = req.body;
-      if (!license_key) {
-        res.status(400).json({ success: false, message: 'Thiếu trường license_key.' });
-        return;
-      }
-
-      const existing = await licenseRepo.findByLicenseKey(license_key);
+      const existing = await licenseRepo.findLatestLicense();
       if (!existing) {
-        res.status(404).json({ success: false, message: 'License không tồn tại trong hệ thống local.' });
+        res.status(404).json({ success: false, message: 'Không tìm thấy license nào trong hệ thống local.' });
         return;
       }
 
-      const result = await client.verifyLicense(license_key);
+      const license_key = existing.license_key;
+      const signature = existing.signature;
+      const result = await client.verifyLicense(license_key, signature);
       const data = result?.data ?? result;
 
       // Cập nhật status = 1 sau khi xác thực thành công
@@ -137,16 +124,17 @@ export function createAuthRouter(
   //  3. GET /system-connections/get
   //     Lấy thông tin connection từ AuthService
   // ───────────────────────────────────────────────────────────────────────────
-  router.get('/system-connections/get', async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/system-connections/get', licenseGuard, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const rawGroupKey = req.query.group_key;
       const groupKeys: string[] = Array.isArray(rawGroupKey)
         ? (rawGroupKey as string[])
         : rawGroupKey
-        ? [rawGroupKey as string]
-        : [];
+          ? [rawGroupKey as string]
+          : [];
 
-      const result = await client.getSystemConnections(groupKeys);
+      const activeLicense = (req as any).activeLicense;
+      const result = await client.getSystemConnections(groupKeys, [], activeLicense.license_key, activeLicense.signature);
       res.json({ success: true, data: result?.data ?? result });
     } catch (error) {
       next(error);
@@ -157,7 +145,7 @@ export function createAuthRouter(
   //  4. POST /client-registers
   //     Đăng ký liên kết tài khoản với hệ thống khác
   // ───────────────────────────────────────────────────────────────────────────
-  router.post('/client-registers', replayGuard, licenseGuard, async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/client-registers', licenseGuard, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { system_connection_id, target_system_id, external_id, description } = req.body;
       if (!system_connection_id || !target_system_id) {
@@ -165,7 +153,15 @@ export function createAuthRouter(
         return;
       }
 
-      const result = await client.registerClient(system_connection_id, target_system_id, external_id, description ?? '');
+      const activeLicense = (req as any).activeLicense;
+      const result = await client.registerClient(
+        system_connection_id,
+        target_system_id,
+        external_id,
+        description ?? '',
+        activeLicense.license_key,
+        activeLicense.signature
+      );
       const data = result?.data ?? result;
 
       const meta = getMeta(req);
@@ -186,7 +182,7 @@ export function createAuthRouter(
   //  5. POST /authenticate
   //     Xin cấp token từ AuthService
   // ───────────────────────────────────────────────────────────────────────────
-  router.post('/authenticate', replayGuard, licenseGuard, async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/authenticate', licenseGuard, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { api_key, user_id } = req.body;
       if (!api_key || !user_id) {
@@ -194,7 +190,8 @@ export function createAuthRouter(
         return;
       }
 
-      const result = await client.authenticate(api_key, String(user_id));
+      const activeLicense = (req as any).activeLicense;
+      const result = await client.authenticate(api_key, String(user_id), activeLicense.license_key, activeLicense.signature);
       res.json({ success: true, data: result?.data ?? result });
     } catch (error) {
       next(error);
@@ -216,7 +213,8 @@ export function createAuthRouter(
         return;
       }
 
-      const result = await client.verifyToken(token);
+      const activeLicense = (req as any).activeLicense;
+      const result = await client.verifyToken(token, activeLicense.license_key, activeLicense.signature);
       res.json({ success: true, data: result?.data ?? result });
     } catch (error) {
       next(error);
@@ -227,9 +225,10 @@ export function createAuthRouter(
   //  7. POST /kek/request
   //     Yêu cầu cấp KEK từ AuthService
   // ───────────────────────────────────────────────────────────────────────────
-  router.post('/kek/request', replayGuard, licenseGuard, async (req: Request, res: Response, next: NextFunction) => {
+  router.post('/kek/request', licenseGuard, async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await client.requestKek();
+      const activeLicense = (req as any).activeLicense;
+      const result = await client.requestKek(activeLicense.license_key, activeLicense.signature);
       const data = result?.data ?? result;
 
       const meta = getMeta(req);

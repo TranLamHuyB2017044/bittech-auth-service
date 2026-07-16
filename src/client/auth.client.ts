@@ -27,11 +27,9 @@ export class AuthServiceClient {
   }
 
   private createRequestMetadata() {
-    const { config } = this.getLicenseSeedAndConfig();
     return {
       nonce: crypto.randomBytes(16).toString('hex'),
-      timestamp: String(Math.floor(Date.now() / 1000)),
-      signature: config.signature
+      timestamp: String(Math.floor(Date.now() / 1000))
     };
   }
 
@@ -44,25 +42,24 @@ export class AuthServiceClient {
     const configPath = path.join(process.cwd(), this.licenseDir, this.licenseFilename);
     const licenseConfigContent = fs.readFileSync(configPath, 'utf8');
 
-    const payload = {
-      system_connection_id: 12,
-      license_config: licenseConfigContent,
-      license_seed: seed,
-      label,
-      expired_at: expiredAt,
-      notes: notes || ''
-    };
+    const formData = new FormData();
+    const blob = new Blob([licenseConfigContent], { type: 'application/octet-stream' });
+    formData.append('license_config', blob, this.licenseFilename);
+    formData.append('license_seed', seed);
+    formData.append('label', label);
+    formData.append('expired_at', expiredAt);
+    formData.append('notes', notes || '');
 
-    const response = await axios.post(`${this.authApiUrl}/api/license/register`, payload, {
+    const response = await axios.post(`${this.authApiUrl}/api/license/register`, formData, {
       headers: { Accept: 'application/json' }
     });
     return response.data;
   }
 
   // 2. Xác thực license
-  async verifyLicense(licenseKey: string) {
+  async verifyLicense(licenseKey: string, signature?: string | null) {
     const { seed } = this.getLicenseSeedAndConfig();
-    const { nonce, timestamp, signature } = this.createRequestMetadata();
+    const { nonce, timestamp } = this.createRequestMetadata();
 
     const payload = {
       license_key: licenseKey,
@@ -70,7 +67,7 @@ export class AuthServiceClient {
       system_id: this.systemId,
       nonce,
       timestamp,
-      signature
+      signature: signature || ''
     };
 
     const response = await axios.post(`${this.authApiUrl}/api/license/verify`, payload, {
@@ -80,18 +77,17 @@ export class AuthServiceClient {
   }
 
   // 3. Lấy thông tin connection
-  async getSystemConnections(groupKeys: string[], clientRegister: any[] = []) {
-    const { config } = this.getLicenseSeedAndConfig();
-    const { nonce, timestamp, signature } = this.createRequestMetadata();
+  async getSystemConnections(groupKeys: string[], clientRegister: any[] = [], licenseKey?: string | null, signature?: string | null) {
+    const { nonce, timestamp } = this.createRequestMetadata();
 
     const payload = {
       source_system_id: this.systemId,
       group_key: groupKeys,
       client_register: clientRegister,
-      license_key: config.signature,
+      license_key: licenseKey || '',
       nonce,
       timestamp,
-      signature
+      signature: signature || ''
     };
 
     const response = await axios.get(`${this.authApiUrl}/api/system-connections/get`, {
@@ -102,9 +98,9 @@ export class AuthServiceClient {
   }
 
   // 4. Đăng ký liên kết tài khoản
-  async registerClient(connectionId: string, targetSystemId: string, externalId: any, description: string) {
-    const { seed, config } = this.getLicenseSeedAndConfig();
-    const { nonce, timestamp, signature } = this.createRequestMetadata();
+  async registerClient(connectionId: string, targetSystemId: string, externalId: any, description: string, licenseKey?: string | null, signature?: string | null) {
+    const { seed } = this.getLicenseSeedAndConfig();
+    const { nonce, timestamp } = this.createRequestMetadata();
 
     const payload = {
       system_connection_id: connectionId,
@@ -112,11 +108,11 @@ export class AuthServiceClient {
       source_system_id: this.systemId,
       external_id: externalId,
       description,
-      license_key: config.signature,
+      license_key: licenseKey || '',
       license_seed: seed,
       nonce,
       timestamp,
-      signature
+      signature: signature || ''
     };
 
     const response = await axios.post(`${this.authApiUrl}/api/client-registers`, payload, {
@@ -126,18 +122,17 @@ export class AuthServiceClient {
   }
 
   // 5. Xin cấp token
-  async authenticate(apiKey: string, userId: string) {
-    const { config } = this.getLicenseSeedAndConfig();
-    const { nonce, timestamp, signature } = this.createRequestMetadata();
+  async authenticate(apiKey: string, userId: string, licenseKey?: string | null, signature?: string | null) {
+    const { nonce, timestamp } = this.createRequestMetadata();
 
     const payload = {
       source_system_id: this.systemId,
-      license_key: config.signature,
+      license_key: licenseKey || '',
       api_key: apiKey,
       user_id: userId,
       nonce,
       timestamp,
-      signature
+      signature: signature || ''
     };
 
     const response = await axios.post(`${this.authApiUrl}/api/authenticate`, payload, {
@@ -147,18 +142,17 @@ export class AuthServiceClient {
   }
 
   // 6. Verify Token (Backend)
-  async verifyToken(token: string) {
-    const { config } = this.getLicenseSeedAndConfig();
-    const { nonce, timestamp, signature } = this.createRequestMetadata();
+  async verifyToken(token: string, licenseKey?: string | null, signature?: string | null) {
+    const { nonce, timestamp } = this.createRequestMetadata();
 
     const payload = {
       source_system_id: this.systemId,
-      license_key: config.signature,
+      license_key: licenseKey || '',
       api_key: '',
       user_id: '',
       nonce,
       timestamp,
-      signature
+      signature: signature || ''
     };
 
     const response = await axios.post(`${this.authApiUrl}/api/verify-token`, payload, {
@@ -171,17 +165,17 @@ export class AuthServiceClient {
   }
 
   // 7. Request KEK
-  async requestKek() {
-    const { seed, config } = this.getLicenseSeedAndConfig();
-    const { nonce, timestamp, signature } = this.createRequestMetadata();
+  async requestKek(licenseKey?: string | null, signature?: string | null) {
+    const { seed } = this.getLicenseSeedAndConfig();
+    const { nonce, timestamp } = this.createRequestMetadata();
 
     const payload = {
-      license_key: config.signature,
+      license_key: licenseKey || '',
       license_seed: seed,
       system_id: this.systemId,
       nonce,
       timestamp,
-      signature
+      signature: signature || ''
     };
 
     const response = await axios.post(`${this.authApiUrl}/api/kek/request`, payload, {
