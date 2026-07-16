@@ -41,7 +41,7 @@
   "author": "Bittech",
   "license": "ISC",
   "dependencies": {
-    "@prisma/client": "^7.0.0",
+    "@prisma/client": "6.19.0",
     "axios": "^1.7.9"
   },
   "peerDependencies": {
@@ -50,7 +50,7 @@
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.2",
-    "prisma": "^7.0.0",
+    "prisma": "6.19.0",
     "typescript": "^5.7.2"
   },
   "engines": {
