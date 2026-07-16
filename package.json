@@ -1,10 +1,17 @@
 {
-  "name": "bittech-auth-service",
+  "name": "@TranLamHuyB2017044/bittech-auth-service",
   "version": "1.0.0",
   "description": "Gói tích hợp xác thực và cấp phép hệ thống Node.js với AuthService của Bittech (MongoDB)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TranLamHuyB2017044/bittech-auth-service.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "exports": {
     ".": {
       "import": "./dist/index.js",

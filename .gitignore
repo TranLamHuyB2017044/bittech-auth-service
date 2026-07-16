@@ -1,3 +1,6 @@
+# Local .npmrc có thể chứa token thật - không commit lên git
+.npmrc.local
+
 # Logs
 logs
 *.log

@@ -1,51 +1,34 @@
 # Hướng dẫn Luồng Tương tác API và Tích hợp Client-Backend (AuthService)
 
-Tài liệu này hướng dẫn chi tiết cách Client (Mobile/Frontend) tương tác với Backend của bạn, và luồng tự động bọc gọi từ Backend của bạn tới hệ thống **AuthService** của Bittech sử dụng thư viện `bittech-auth-service`.
+Tài liệu này hướng dẫn chi tiết cách Client (Mobile/Frontend) tương tác với Backend của bạn, và luồng tự động bọc gọi từ Backend của bạn tới hệ thống **AuthService** của Bittech sử dụng thư viện `@TranLamHuyB2017044/bittech-auth-service`.
 
 ---
 
 ## 1. Cài đặt thư viện
 
-Để tích hợp và sử dụng thư viện `bittech-auth-service` trong dự án Backend Node.js của bạn, hãy chạy lệnh cài đặt sau:
+Thư viện được phân phối dưới dạng scoped package trên **GitHub Packages**. Bạn có thể cài đặt bằng một trong hai cách dưới đây:
 
+### Cách 1: Cài đặt từ GitHub Packages (Khuyên dùng)
+
+1. Tạo hoặc bổ sung vào tệp `.npmrc` ở gốc dự án Backend của bạn cấu hình registry và Token:
+   ```ini
+   @TranLamHuyB2017044:registry=https://npm.pkg.github.com/
+   //npm.pkg.github.com/:_authToken=YOUR_GITHUB_PERSONAL_ACCESS_TOKEN
+   ```
+   > [!IMPORTANT]
+   > Thay thế `YOUR_GITHUB_PERSONAL_ACCESS_TOKEN` bằng mã Token truy cập cá nhân (GitHub Personal Access Token - PAT) có quyền `read:packages`.
+
+2. Chạy lệnh cài đặt package:
+   ```bash
+   npm install @TranLamHuyB2017044/bittech-auth-service
+   ```
+
+### Cách 2: Cài đặt trực tiếp từ Git Repository qua SSH
+
+Nếu không muốn đăng nhập/xác thực registry, bạn có thể tải trực tiếp từ repository riêng tư qua SSH (yêu cầu máy chủ/máy phát triển có sẵn SSH Key cấu hình với GitHub):
 ```bash
-npm install bittech-auth-service
+npm install git+ssh://git@github.com:TranLamHuyB2017044/bittech-auth-service.git
 ```
-
-> [!NOTE]
-> **Nếu package chưa được public lên NPM Registry công khai (dùng nội bộ hoặc đang phát triển):**
->
-> Bạn có thể cài đặt package bằng một trong các phương pháp sau:
-> 
-> * **Cách 1: Cài đặt từ thư mục cục bộ (Local Path)**
->   ```bash
->   npm install ../path/to/bittech-auth-service
->   ```
-> * **Cách 2: Liên kết cục bộ qua `npm link` (Khuyên dùng khi cần phát triển/sửa code song song)**
->   1. Chạy lệnh sau tại thư mục của thư viện `bittech-auth-service`:
->      ```bash
->      npm run build
->      npm link
->      ```
->   2. Chạy liên kết tại thư mục dự án Backend của bạn:
->      ```bash
->      npm link bittech-auth-service
->      ```
-> * **Cách 3: Cài đặt trực tiếp từ Git Repository (Private/Public)**
->   ```bash
->   npm install git+https://github.com/your-org/bittech-auth-service.git
->   # Hoặc sử dụng giao thức SSH
->   npm install git+ssh://git@github.com:your-org/bittech-auth-service.git
->   ```
-> * **Cách 4: Đóng gói thành file nén `.tgz`**
->   1. Tại thư mục của thư viện, đóng gói package:
->      ```bash
->      npm pack
->      ```
->   2. Tại thư mục dự án Backend, cài đặt file vừa sinh ra:
->      ```bash
->      npm install /duong-dan/den/bittech-auth-service-1.0.0.tgz
->      ```
 
 Đồng thời, hãy cài đặt các peer dependencies cần thiết (nếu dự án của bạn chưa cài đặt):
 
@@ -54,6 +37,37 @@ npm install @prisma/client express
 ```
 
 ---
+
+### 1.2. Publish package lên GitHub Packages (Dành cho Developer của thư viện)
+
+Package được cấu hình tự động publish qua **GitHub Actions** khi có Release mới trên GitHub.
+
+#### Cách 1: Publish tự động qua GitHub Release
+1. Vào trang repository trên GitHub → **Releases** → **Draft a new release**
+2. Tạo tag mới theo chuẩn `v1.x.x`, điền mô tả release rồi nhấn **Publish release**
+3. GitHub Actions workflow `.github/workflows/publish.yml` sẽ tự động chạy: build → publish
+
+#### Cách 2: Chạy thủ công (workflow_dispatch)
+1. Vào **Actions** → chọn workflow **Publish to GitHub Packages** → **Run workflow**
+2. Chọn loại bump version (`patch` / `minor` / `major`) → **Run workflow**
+3. Workflow sẽ tự bump version, commit tag, và publish
+
+#### Publish thủ công từ máy local
+Cần có PAT với quyền `write:packages`, cấu hình `.npmrc.local` (không commit lên git):
+```ini
+@TranLamHuyB2017044:registry=https://npm.pkg.github.com/
+//npm.pkg.github.com/:_authToken=YOUR_GITHUB_PAT_WITH_WRITE_PACKAGES
+```
+Sau đó chạy:
+```bash
+npm run build
+npm publish
+```
+
+> [!WARNING]
+> Không hardcode PAT token vào `.npmrc` rồi commit lên git. Hãy lưu token vào `.npmrc.local` (đã được thêm vào `.gitignore`) hoặc dùng biến môi trường `GITHUB_TOKEN`.
+
+
 
 ## 2. Kiến trúc luồng đi của dữ liệu
 
@@ -217,7 +231,7 @@ Khi Client gọi một API dịch vụ bảo mật của bạn kèm theo header 
 
 * **Cách tích hợp tại Backend của bạn:**
   ```typescript
-  import { AuthServiceClient } from 'bittech-auth-service';
+  import { AuthServiceClient } from '@TranLamHuyB2017044/bittech-auth-service';
   
   const authClient = new AuthServiceClient({ ... });
   
