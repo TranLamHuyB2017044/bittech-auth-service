@@ -33,7 +33,7 @@ jobs:
         with:
           node-version: "22"
           registry-url: "https://npm.pkg.github.com"
-          scope: "@TranLamHuyB2017044"
+          scope: "@tranlamhuyb2017044"
 
       - name: Install dependencies
         run: npm install
